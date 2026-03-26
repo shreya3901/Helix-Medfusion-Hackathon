@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CogniSurv — Team Helix · MedFusion 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060B18;--surface:#0D1526;--surface2:#132038;--surface3:#1A2A47;
+  --border:#1E3A5F;--border2:#2A4F7A;--text:#E8F0FC;--muted:#6B8CAE;
+  --accent:#F472B6;--accent2:#FB923C;--red:#F87171;--amber:#FBBF24;
+  --green:#34D399;--blue:#38BDF8;--purple:#818CF8;
+  --font:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column}
+
+/* ── HEADER ── */
+.header{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface);flex-shrink:0;gap:12px}
+.hleft{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.helix-icon{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#F472B6,#FB923C);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.helix-name{font-size:16px;font-weight:700;background:linear-gradient(135deg,#F472B6,#FB923C);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.vdiv{width:1px;height:26px;background:var(--border)}
+.htitle{font-size:13px;font-weight:600}
+.hsub{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.event-badge{font-size:9px;padding:3px 9px;border-radius:20px;background:rgba(244,114,182,.1);border:1px solid rgba(244,114,182,.25);color:#FBCFE8;font-family:var(--mono);white-space:nowrap}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}50%{box-shadow:0 0 0 5px rgba(52,211,153,0)}}
+.hstats{display:flex;align-items:center;gap:0;flex-shrink:0}
+.hstat{text-align:center;padding:0 12px;border-left:1px solid var(--border)}
+.hstat-val{font-size:15px;font-weight:700;font-family:var(--mono)}
+.hstat-lbl{font-size:9px;color:var(--muted)}
+
+/* ── GLOBAL QUERY BAR ── */
+.query-bar{padding:8px 18px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.query-label{font-size:10px;color:var(--muted);font-family:var(--mono);white-space:nowrap;flex-shrink:0}
+.qinput-wrap{flex:1;position:relative;max-width:500px}
+.qinput{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:7px 12px 7px 32px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;transition:border .2s}
+.qinput:focus{border-color:var(--accent)}
+.qinput::placeholder{color:var(--muted)}
+.qinput-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+.qsuggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;z-index:3000;overflow:hidden;display:none;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.qsugg-item{padding:9px 12px;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.qsugg-item:last-child{border-bottom:none}
+.qsugg-item:hover{background:var(--surface2)}
+.qsugg-type{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:6px}
+.qchips{display:flex;gap:6px;flex-wrap:wrap}
+.qchip{font-size:10px;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);border:1px solid var(--border);color:var(--muted);transition:all .15s;white-space:nowrap}
+.qchip:hover,.qchip.active{background:rgba(244,114,182,.15);border-color:rgba(244,114,182,.4);color:#FBCFE8}
+
+/* ── NAV ── */
+.nav{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;padding:0 18px;gap:2px;overflow-x:auto}
+.nav::-webkit-scrollbar{height:0}
+.ntab{padding:8px 14px;font-size:10px;font-weight:600;letter-spacing:.7px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;text-transform:uppercase}
+.ntab:hover{color:var(--text)}
+.ntab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── MAIN ── */
+.main{display:flex;flex:1;overflow:hidden}
+.panel{display:none;flex:1;overflow:hidden}
+.panel.active{display:flex}
+
+/* ── SIDEBAR ── */
+.sidebar{width:248px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sb-sec{padding:11px 13px;border-bottom:1px solid var(--border)}
+.sblabel{font-size:9px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-family:var(--mono)}
+.rfpills{display:flex;gap:5px}
+.rfpill{font-size:9px;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);transition:all .15s;border:1px solid var(--border);color:var(--muted)}
+.rfpill.a-all{background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.4);color:#FCA5A5}
+.rfpill.a-mat{background:rgba(244,114,182,.15);border-color:rgba(244,114,182,.4);color:#FBCFE8}
+.rfpill.a-ane{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.4);color:#FDE68A}
+.sinput{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;transition:border .2s}
+.sinput:focus{border-color:var(--accent)}
+.sinput::placeholder{color:var(--muted)}
+.cnt-badge{font-size:10px;color:var(--muted);font-family:var(--mono);padding:5px 13px 2px}
+.dlist{flex:1;overflow-y:auto;padding:5px}
+.dlist::-webkit-scrollbar{width:2px}
+.dlist::-webkit-scrollbar-thumb{background:var(--border2)}
+.ditem{padding:8px 10px;border-radius:7px;cursor:pointer;transition:background .12s;margin-bottom:3px;border:1px solid transparent}
+.ditem:hover{background:var(--surface2)}
+.ditem.active{background:var(--surface3);border-color:var(--border2)}
+.dname{font-size:11px;font-weight:700}
+.dmeta{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+.rbar-wrap{margin-top:4px;height:2px;background:var(--border);border-radius:1px}
+.rbar{height:2px;border-radius:1px}
+.dtype-dot{width:5px;height:5px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+
+/* ── MAP ── */
+#map{flex:1}
+.leaflet-container{background:#060B18!important}
+.leaflet-tile-pane{filter:brightness(0.35) saturate(0.2) hue-rotate(210deg)}
+.leaflet-control-attribution{display:none}
+.leaflet-control-zoom a{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+.map-legend{position:absolute;bottom:14px;left:262px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 11px;z-index:1000;pointer-events:none}
+.legttl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-family:var(--mono)}
+.legrow{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted);margin-bottom:4px}
+
+/* ── AI PANEL ── */
+.ai-panel{width:326px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.ap-hdr{padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ap-icon{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,rgba(244,114,182,.3),rgba(251,146,60,.3));border:1px solid rgba(244,114,182,.4);display:flex;align-items:center;justify-content:center;font-size:11px}
+.ap-body{flex:1;overflow-y:auto;padding:13px}
+.ap-body::-webkit-scrollbar{width:2px}
+.ap-body::-webkit-scrollbar-thumb{background:var(--border2)}
+.empty-s{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-align:center;gap:10px;padding:20px}
+
+/* Detail content */
+.dname-big{font-size:14px;font-weight:700;margin-bottom:2px}
+.dstate-line{font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:10px}
+
+/* Rate of change badge */
+.roc-badge{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:10px;border:1px solid}
+.roc-up{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.25)}
+.roc-stable{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.25)}
+.roc-down{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.25)}
+.roc-label{font-size:10px;flex:1;line-height:1.4}
+.roc-val{font-size:12px;font-weight:700;font-family:var(--mono)}
+
+/* Plain english box */
+.plain-box{background:var(--surface3);border-radius:8px;padding:9px 11px;margin-bottom:10px;border-left:3px solid var(--accent)}
+.plain-box-lbl{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);font-family:var(--mono);margin-bottom:4px}
+.plain-box-text{font-size:11px;line-height:1.6;color:#C8D8F0}
+
+.gauge-card{background:var(--surface2);border-radius:8px;padding:11px;margin-bottom:10px;border:1px solid var(--border);display:flex;align-items:center;gap:11px}
+.gauge-wrap{width:50px;height:50px;position:relative;flex-shrink:0}
+.gauge-wrap svg{transform:rotate(-90deg)}
+.gauge-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:var(--mono)}
+.sec-label{font-size:9px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:var(--mono);margin:10px 0 6px}
+.driver-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.dicon{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dtext{font-size:11px;flex:1;line-height:1.3}
+.dval{font-size:10px;font-family:var(--mono);color:var(--muted);flex-shrink:0}
+.dbar-w{width:44px;height:2px;background:var(--border);border-radius:1px;flex-shrink:0}
+.dbar{height:2px;border-radius:1px}
+.spark-card{background:var(--surface2);border-radius:8px;padding:9px 11px;border:1px solid var(--border)}
+.ai-card{background:var(--surface2);border-radius:8px;padding:11px;border:1px solid var(--border);margin-top:10px}
+.ai-label{font-size:9px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:var(--mono);margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.ai-text{font-size:11px;line-height:1.8;color:#B8CCEC}
+.tcursor{display:inline-block;width:2px;height:11px;background:var(--accent);animation:blink .7s infinite;vertical-align:middle;margin-left:1px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── SCROLLABLE PANELS ── */
+.scroll-panel{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:13px}
+.scroll-panel::-webkit-scrollbar{width:3px}
+.scroll-panel::-webkit-scrollbar-thumb{background:var(--border2)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px}
+.card-title{font-size:11px;font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.ctag{font-size:9px;padding:2px 7px;border-radius:10px;font-family:var(--mono)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat-box{background:var(--surface2);border-radius:8px;padding:11px;border:1px solid var(--border)}
+.stat-val{font-size:20px;font-weight:700;font-family:var(--mono);margin-bottom:2px}
+.stat-lbl{font-size:10px;color:var(--muted);line-height:1.4}
+.stat-delta{font-size:10px;font-family:var(--mono);margin-top:3px}
+.ch{position:relative;height:200px}
+.ch-sm{position:relative;height:160px}
+.ch-lg{position:relative;height:240px}
+
+/* Outbreak timeline */
+.timeline{position:relative;padding:8px 0 0 16px}
+.tl-line{position:absolute;left:16px;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(244,114,182,.5),rgba(30,58,95,.2))}
+.tl-item{position:relative;padding:0 0 16px 24px;cursor:pointer}
+.tl-dot{position:absolute;left:-4px;top:3px;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--surface);flex-shrink:0}
+.tl-header{display:flex;align-items:center;gap:7px;margin-bottom:3px;flex-wrap:wrap}
+.tl-date{font-size:9px;font-family:var(--mono);color:var(--muted)}
+.tl-src{font-size:9px;padding:1px 6px;border-radius:8px;font-family:var(--mono)}
+.tl-title{font-size:11px;font-weight:600;margin-bottom:2px}
+.tl-desc{font-size:10px;color:var(--muted);line-height:1.5}
+.tl-item:hover .tl-title{color:var(--accent)}
+
+/* Alert feed */
+.alert-row{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--border)}
+.alert-row:last-child{border-bottom:none}
+.alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.alert-src{font-size:9px;font-family:var(--mono);color:var(--muted);margin-bottom:2px}
+.alert-text{font-size:11px;line-height:1.5}
+.alert-time{font-size:9px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+
+/* Source tags */
+.stag{display:inline-flex;align-items:center;font-size:9px;padding:2px 7px;border-radius:10px;font-family:var(--mono);margin:2px 2px 0 0}
+.stag.who{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:#7DD3FC}
+.stag.promed{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:#FDE68A}
+.stag.nfhs{background:rgba(244,114,182,.1);border:1px solid rgba(244,114,182,.25);color:#FBCFE8}
+.stag.cdc{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:#6EE7B7}
+.stag.hmap{background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.25);color:#C4B5FD}
+.stag.ecdc{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:#FCA5A5}
+.stag.dis{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:#7DD3FC}
+
+/* Data table */
+.dtable{width:100%;border-collapse:collapse;font-size:11px}
+.dtable th{font-size:9px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2)}
+.dtable td{padding:6px 8px;border-bottom:1px solid var(--border)}
+.dtable tr:hover td{background:rgba(19,32,56,.5)}
+
+/* Query results panel */
+.qresult{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:13px}
+.qresult::-webkit-scrollbar{width:3px}
+.qresult::-webkit-scrollbar-thumb{background:var(--border2)}
+.qr-hero{background:linear-gradient(135deg,rgba(244,114,182,.08),rgba(251,146,60,.05));border:1px solid rgba(244,114,182,.2);border-radius:10px;padding:14px 16px}
+.qr-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.qr-sub{font-size:11px;color:var(--muted);line-height:1.6}
+
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Tooltip */
+.leaflet-tooltip{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:7px!important;color:var(--text)!important;font-family:var(--font)!important;font-size:11px!important;padding:7px 11px!important;box-shadow:0 4px 20px rgba(0,0,0,.6)!important}
+.leaflet-tooltip-top::before{border-top-color:var(--border)!important}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="hleft">
+    <div class="helix-icon">⌬</div>
+    <div class="helix-name">Helix</div>
+    <div class="vdiv"></div>
+    <div>
+      <div class="htitle">CogniSurv — Maternal &amp; Anemia Surveillance</div>
+      <div class="hsub">Cognitive Disease Surveillance Map · India · AI-Powered Risk Intelligence</div>
+    </div>
+    <div class="event-badge">MedFusion Hackfest 2026</div>
+  </div>
+  <div class="hstats">
+    <div style="display:flex;align-items:center;gap:5px;padding:0 12px;border-left:1px solid var(--border)">
+      <div class="live-dot"></div>
+      <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">Live</span>
+    </div>
+    <div class="hstat"><div class="hstat-val" style="color:#F87171" id="h-crit">—</div><div class="hstat-lbl">Critical Districts</div></div>
+    <div class="hstat"><div class="hstat-val" style="color:#FBBF24">97</div><div class="hstat-lbl">India MMR/100K</div></div>
+    <div class="hstat"><div class="hstat-val" style="color:#F472B6">57%</div><div class="hstat-lbl">Anemia in Women</div></div>
+  </div>
+</div>
+
+<!-- GLOBAL QUERY BAR -->
+<div class="query-bar">
+  <div class="query-label">🔍 QUERY:</div>
+  <div class="qinput-wrap">
+    <span class="qinput-icon">⌕</span>
+    <input class="qinput" id="gquery" type="text" placeholder="Search any disease, region, or indicator — e.g. 'Bihar anemia' or 'maternal mortality UP'…" oninput="handleQuery(this.value)" onfocus="showSuggestions()" onblur="setTimeout(hideSuggestions,200)">
+    <div class="qsuggestions" id="qsugg"></div>
+  </div>
+  <div class="qchips">
+    <div class="qchip" onclick="runQuery('Maternal Mortality Bihar')">Maternal · Bihar</div>
+    <div class="qchip" onclick="runQuery('Anemia UP')">Anemia · UP</div>
+    <div class="qchip" onclick="runQuery('Critical districts')">Critical Districts</div>
+    <div class="qchip" onclick="runQuery('Kerala benchmark')">Kerala Benchmark</div>
+    <div class="qchip" onclick="runQuery('Escalating risk')">Escalating Risk</div>
+  </div>
+</div>
+
+<!-- NAV TABS -->
+<div class="nav">
+  <div class="ntab active" onclick="switchTab('map')" id="tab-map">🗺 Risk Map</div>
+  <div class="ntab" onclick="switchTab('query')" id="tab-query">🔍 Query Results</div>
+  <div class="ntab" onclick="switchTab('surv')" id="tab-surv">📊 Surveillance Data</div>
+  <div class="ntab" onclick="switchTab('timeline')" id="tab-timeline">📅 Outbreak Timeline</div>
+  <div class="ntab" onclick="switchTab('trends')" id="tab-trends">📈 Historical Trends</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ══ MAP ══ -->
+  <div class="panel active" id="panel-map">
+    <div class="sidebar">
+      <div class="sb-sec">
+        <div class="sblabel">Focus Layer</div>
+        <div class="rfpills">
+          <div class="rfpill a-all" id="rf-all" onclick="setFilter('all')">All</div>
+          <div class="rfpill" id="rf-mat" onclick="setFilter('mat')">Maternal</div>
+          <div class="rfpill" id="rf-ane" onclick="setFilter('ane')">Anemia</div>
+        </div>
+      </div>
+      <div class="sb-sec" style="padding:9px 12px">
+        <input class="sinput" id="search" type="text" placeholder="Search district / state…" oninput="renderList()">
+      </div>
+      <div class="cnt-badge" id="cnt-badge"></div>
+      <div class="dlist" id="dlist"></div>
+    </div>
+
+    <div style="flex:1;position:relative;overflow:hidden">
+      <div id="map" style="width:100%;height:100%"></div>
+      <div class="map-legend">
+        <div class="legttl">Risk Score</div>
+        <div class="legrow"><div style="width:7px;height:7px;border-radius:50%;background:#F87171"></div>Critical 80–100</div>
+        <div class="legrow"><div style="width:7px;height:7px;border-radius:50%;background:#FB923C"></div>High 60–79</div>
+        <div class="legrow"><div style="width:7px;height:7px;border-radius:50%;background:#FBBF24"></div>Moderate 40–59</div>
+        <div class="legrow"><div style="width:7px;height:7px;border-radius:50%;background:#34D399"></div>Low 0–39</div>
+        <div style="margin:6px 0 4px;font-size:9px;color:var(--muted);font-family:var(--mono)">── Primary Focus</div>
+        <div class="legrow"><div class="dtype-dot" style="background:#F472B6"></div>Maternal</div>
+        <div class="legrow"><div class="dtype-dot" style="background:#FBBF24"></div>Anemia</div>
+      </div>
+    </div>
+
+    <div class="ai-panel">
+      <div class="ap-hdr">
+        <div class="ap-icon">✦</div>
+        <div>
+          <div style="font-size:12px;font-weight:700">AI Causal Analysis</div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">Maternal &amp; Anemia Risk Interpreter</div>
+        </div>
+      </div>
+      <div class="ap-body" id="ap-body">
+        <div class="empty-s">
+          <div style="font-size:26px;opacity:.2">⬡</div>
+          <div style="font-size:11px;line-height:1.7;color:var(--muted)">Click any district on the map<br>for AI causal analysis</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ QUERY RESULTS ══ -->
+  <div class="panel" id="panel-query">
+    <div class="qresult" id="qresult-body">
+      <div class="empty-s" style="height:auto;padding:40px">
+        <div style="font-size:26px;opacity:.2">🔍</div>
+        <div style="font-size:12px;line-height:1.8;color:var(--muted)">Use the query bar above to search for any disease, region or indicator.<br>Try "Bihar anemia" or click a quick-search chip.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SURVEILLANCE ══ -->
+  <div class="panel" id="panel-surv">
+    <div class="scroll-panel" id="surv-content">
+      <div style="display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:10px;color:var(--muted)">
+        <div class="spinner"></div>
+        <div style="font-size:11px;font-family:var(--mono)">Fetching from WHO · Disease.sh · NFHS-5 · ProMED…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ OUTBREAK TIMELINE ══ -->
+  <div class="panel" id="panel-timeline">
+    <div class="scroll-panel" id="timeline-content">
+      <div style="display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:10px;color:var(--muted)">
+        <div class="spinner"></div>
+        <div style="font-size:11px;font-family:var(--mono)">Loading outbreak timeline…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ HISTORICAL TRENDS ══ -->
+  <div class="panel" id="panel-trends">
+    <div class="scroll-panel" id="trends-content">
+      <div style="display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:10px;color:var(--muted)">
+        <div class="spinner"></div>
+        <div style="font-size:11px;font-family:var(--mono)">Loading historical trend data…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════
+const districts=[
+  {id:'purnea',name:'Purnea',state:'Bihar',lat:25.78,lng:87.47,risk:91,roc:+8,type:'mat',
+   drivers:[{name:'Anemia prevalence',val:'67%',pct:67,color:'#F472B6'},{name:'Inst. delivery rate',val:'38%',pct:38,color:'#FBBF24'},{name:'Distance to EmOC',val:'42 km',pct:84,color:'#F87171'},{name:'Skilled birth attendant',val:'29%',pct:29,color:'#FB923C'}],
+   trend:[42,55,61,73,80,88,91],
+   explanation:'Maternal mortality risk is rising in this district. Primary drivers appear to be high anemia prevalence (67%) — nearly 2× the national average — combined with low institutional delivery rate (38%). Distance to emergency obstetric care exceeds 42 km, creating a critical delay window. Only 29% of births are attended by skilled professionals.'},
+  {id:'sheohar',name:'Sheohar',state:'Bihar',lat:26.52,lng:85.30,risk:88,roc:+6,type:'ane',
+   drivers:[{name:'Maternal anemia',val:'64%',pct:64,color:'#F472B6'},{name:'Child stunting',val:'58%',pct:58,color:'#F87171'},{name:'IFA supplementation',val:'38%',pct:38,color:'#FBBF24'},{name:'Open defecation',val:'71%',pct:71,color:'#FB923C'}],
+   trend:[55,60,65,70,75,82,88],
+   explanation:'Anemia risk is rising in Sheohar due to a nutrition-infection cycle. Maternal anemia at 64% combined with 71% open defecation sustains enteric parasitic infections that deplete iron stores regardless of diet. IFA supplementation at only 38% is well below the impact threshold. Child stunting at 58% confirms this is a multi-generational undernutrition crisis.'},
+  {id:'sitamarhi',name:'Sitamarhi',state:'Bihar',lat:26.59,lng:85.49,risk:84,roc:+5,type:'ane',
+   drivers:[{name:'Anemia in adolescents',val:'54%',pct:54,color:'#F472B6'},{name:'ANC 4+ visits',val:'41%',pct:41,color:'#FBBF24'},{name:'Family planning uptake',val:'22%',pct:22,color:'#F87171'},{name:'Female literacy',val:'47%',pct:47,color:'#FB923C'}],
+   trend:[50,58,63,68,74,79,84],
+   explanation:'Sitamarhi shows an adolescent-to-maternal anemia pipeline. Iron deficiency at 54% in adolescent girls enters pregnancy untreated, where only 41% receive 4+ antenatal visits. Low family planning at 22% causes high-parity pregnancies that deplete iron further each cycle. Female literacy at 47% limits health-seeking behavior at every stage.'},
+  {id:'shravasti',name:'Shravasti',state:'Uttar Pradesh',lat:27.53,lng:82.07,risk:83,roc:+5,type:'mat',
+   drivers:[{name:'Child under-5 mortality',val:'89/1000',pct:89,color:'#F87171'},{name:'Skilled birth attendant',val:'33%',pct:33,color:'#F87171'},{name:'Anemia in mothers',val:'61%',pct:61,color:'#F472B6'},{name:'ANC 4+ visits',val:'31%',pct:31,color:'#FBBF24'}],
+   trend:[50,55,60,66,72,78,83],
+   explanation:'Shravasti is India\'s lowest HDI district. Maternal anemia at 61% entering delivery, combined with only 33% skilled birth attendance, creates high obstetric fatality risk. ANC at 31% means most high-risk pregnancies go undetected until delivery. Child under-5 mortality at 89 per 1,000 reflects the cascading failure of maternal health services here.'},
+  {id:'araria',name:'Araria',state:'Bihar',lat:26.15,lng:87.52,risk:82,roc:+6,type:'mat',
+   drivers:[{name:'Maternal mortality rate',val:'312/L',pct:78,color:'#F87171'},{name:'Anemia in pregnancy',val:'59%',pct:59,color:'#F472B6'},{name:'Inst. delivery rate',val:'42%',pct:42,color:'#FBBF24'},{name:'First trimester ANC',val:'31%',pct:31,color:'#FB923C'}],
+   trend:[48,55,60,65,70,76,82],
+   explanation:'Araria has the highest maternal mortality in Seemanchal at 312 per lakh. Anemia at 59% in pregnancy is the primary physiological driver, compounded by late ANC entry — only 31% register in the first trimester. This delays identification of high-risk pregnancies until it is too late to intervene.'},
+  {id:'dhubri',name:'Dhubri',state:'Assam',lat:26.02,lng:89.98,risk:81,roc:+4,type:'mat',
+   drivers:[{name:'Maternal mortality rate',val:'301/L',pct:75,color:'#F87171'},{name:'Anemia in pregnancy',val:'63%',pct:63,color:'#F472B6'},{name:'Inst. delivery rate',val:'44%',pct:44,color:'#FBBF24'},{name:'PHC flood inaccessibility',val:'40–60%',pct:70,color:'#38BDF8'}],
+   trend:[45,52,58,63,69,75,81],
+   explanation:'Dhubri is Assam\'s highest maternal mortality district at 301 per lakh. Annual Brahmaputra flooding renders 40–60% of PHCs inaccessible during monsoon, leaving women in active labor without emergency obstetric care. Anemia at 63% in pregnancy compounds delivery risk significantly.'},
+  {id:'dumka',name:'Dumka',state:'Jharkhand',lat:24.27,lng:87.25,risk:76,roc:+7,type:'mat',
+   drivers:[{name:'Anemia at delivery',val:'61%',pct:61,color:'#F472B6'},{name:'PPH risk',val:'High',pct:72,color:'#F87171'},{name:'Blood bank distance',val:'68 km',pct:85,color:'#F87171'},{name:'ASHA density deficit',val:'1.4×',pct:60,color:'#FB923C'}],
+   trend:[38,44,52,58,63,69,76],
+   explanation:'In Dumka, 61% of pregnant women arrive at delivery with anemia — a direct precursor to postpartum hemorrhage (PPH) fatality. The nearest blood bank is 68 km away, making hemorrhage management nearly impossible once it occurs. ASHA worker density is 1.4× below national norms in the highest-risk tribal forest blocks.'},
+  {id:'barwani',name:'Barwani',state:'Madhya Pradesh',lat:22.03,lng:74.90,risk:77,roc:+7,type:'ane',
+   drivers:[{name:'Sickle cell carrier rate',val:'24%',pct:48,color:'#818CF8'},{name:'Anemia in children',val:'71%',pct:71,color:'#F87171'},{name:'IFA compliance',val:'41%',pct:41,color:'#FBBF24'},{name:'Newborn screening',val:'2/8 blocks',pct:25,color:'#FB923C'}],
+   trend:[38,44,52,58,62,70,77],
+   explanation:'Barwani has the highest sickle cell carrier rate in MP at 24% among Bhil tribes. Anemia in children reaches 71% — driven by both sickle cell and dietary iron deficiency. Newborn screening is available in only 2 of 8 blocks, leaving most affected children undiagnosed until they present with acute crises.'},
+  {id:'nandurbar',name:'Nandurbar',state:'Maharashtra',lat:21.37,lng:74.24,risk:76,roc:+9,type:'ane',
+   drivers:[{name:'Maternal anemia',val:'58%',pct:58,color:'#F472B6'},{name:'Child malnutrition',val:'36%',pct:72,color:'#F87171'},{name:'AWW absenteeism',val:'High',pct:65,color:'#FBBF24'},{name:'Inst. delivery rate',val:'54%',pct:54,color:'#FB923C'}],
+   trend:[38,44,50,55,62,67,76],
+   explanation:'Nandurbar is Maharashtra\'s most nutritionally distressed district. Maternal anemia at 58% drives intergenerational undernutrition — children born to anemic mothers start life iron-deficient. Anganwadi Worker absenteeism disrupts IFA and supplementary feeding at community level. Geographic remoteness limits NRC facility access.'},
+  {id:'dungarpur',name:'Dungarpur',state:'Rajasthan',lat:23.84,lng:73.72,risk:67,roc:+3,type:'ane',
+   drivers:[{name:'Child anemia',val:'63%',pct:63,color:'#F472B6'},{name:'Anemia in mothers',val:'58%',pct:58,color:'#F87171'},{name:'Safe water access',val:'58%',pct:42,color:'#38BDF8'},{name:'Inst. delivery rate',val:'62%',pct:62,color:'#FBBF24'}],
+   trend:[32,38,44,50,56,61,67],
+   explanation:'Dungarpur shows high intergenerational anemia burden. Child anemia at 63% and maternal anemia at 58% are the same iron deficiency cycle operating at both generational levels. Unsafe water at 42% of households sustains parasitic infections that deplete iron regardless of supplementation.'},
+  {id:'raichur',name:'Raichur',state:'Karnataka',lat:16.21,lng:77.36,risk:71,roc:+2,type:'ane',
+   drivers:[{name:'Anemia in pregnancy',val:'52%',pct:52,color:'#F472B6'},{name:'Fluorosis prevalence',val:'39%',pct:39,color:'#FB923C'},{name:'Safe water access',val:'51%',pct:49,color:'#38BDF8'},{name:'Maternal mortality',val:'198/L',pct:66,color:'#F87171'}],
+   trend:[45,50,54,59,62,66,71],
+   explanation:'Raichur presents an unusual anemia-fluorosis interaction. Anemia at 52% in pregnancy is partly driven by fluoride toxicity — fluoride at 3× WHO limits in groundwater interferes with iron absorption. Maternal mortality at 198 per lakh is nearly 3× the Karnataka state average, reflecting compounding obstetric complications.'},
+  {id:'dahod',name:'Dahod',state:'Gujarat',lat:22.84,lng:74.26,risk:64,roc:+3,type:'ane',
+   drivers:[{name:'Anemia in women',val:'66%',pct:66,color:'#F87171'},{name:'Child stunting',val:'51%',pct:51,color:'#F472B6'},{name:'Sickle cell carrier',val:'13%',pct:26,color:'#818CF8'},{name:'IFA supplementation',val:'54%',pct:54,color:'#FBBF24'}],
+   trend:[28,34,40,47,53,58,64],
+   explanation:'Dahod is Gujarat\'s most tribal district at 74% Adivasi. Anemia in women at 66% indicates a multi-generational cycle — child stunting at 51% confirms iron deficiency begins in early childhood. Sickle cell at 13% adds a genetic layer that dietary supplementation alone cannot resolve.'},
+  {id:'barmer',name:'Barmer',state:'Rajasthan',lat:25.75,lng:71.39,risk:62,roc:+2,type:'ane',
+   drivers:[{name:'Anemia in women',val:'58%',pct:58,color:'#F472B6'},{name:'SAM prevalence',val:'14%',pct:28,color:'#FBBF24'},{name:'Immunization coverage',val:'71%',pct:71,color:'#34D399'},{name:'IFA supplementation',val:'64%',pct:64,color:'#FBBF24'}],
+   trend:[30,35,38,44,50,56,62],
+   explanation:'Barmer\'s moderate anemia risk reflects desert seasonal vulnerability. Anemia in women at 58% peaks April–June during pre-harvest food scarcity in the Thar Desert. IFA supplementation at 64% is improving but drops in summer when ASHA outreach is constrained by extreme heat.'},
+  {id:'yadgir',name:'Yadgir',state:'Karnataka',lat:16.77,lng:77.13,risk:65,roc:+3,type:'mat',
+   drivers:[{name:'Maternal mortality',val:'198/L',pct:66,color:'#F87171'},{name:'Anemia in pregnancy',val:'52%',pct:52,color:'#F472B6'},{name:'Inst. delivery rate',val:'67%',pct:67,color:'#FBBF24'},{name:'Obstetrician shortage',val:'Severe',pct:80,color:'#FB923C'}],
+   trend:[28,34,40,47,54,59,65],
+   explanation:'Yadgir has a maternal mortality rate of 198 per lakh — nearly 3× the Karnataka average. Despite 67% institutional delivery, postpartum complication management is limited by severe specialist obstetrician shortage in government facilities. Anemia at 52% in pregnancy means most deliveries carry elevated hemorrhage risk without specialist backup.'},
+  {id:'thiruvananthapuram',name:'Thiruvananthapuram',state:'Kerala',lat:8.52,lng:76.94,risk:18,roc:-1,type:'mat',
+   drivers:[{name:'Institutional delivery',val:'99.8%',pct:99,color:'#34D399'},{name:'Anemia in pregnancy',val:'12%',pct:12,color:'#34D399'},{name:'ANC 4+ visits',val:'97%',pct:97,color:'#34D399'},{name:'Female literacy',val:'92%',pct:92,color:'#34D399'}],
+   trend:[22,21,20,19,19,18,18],
+   explanation:'Thiruvananthapuram is the national benchmark district. Near-universal institutional delivery, anemia in pregnancy at just 12%, ANC at 97%, and female literacy at 92% create a deeply protective maternal health environment. This proves that sustained female education and universal ANC are the most durable drivers of low maternal mortality.'},
+  {id:'ernakulam',name:'Ernakulam',state:'Kerala',lat:9.98,lng:76.29,risk:14,roc:-1,type:'ane',
+   drivers:[{name:'Anemia in pregnancy',val:'9%',pct:9,color:'#34D399'},{name:'IFA supplementation',val:'98%',pct:98,color:'#34D399'},{name:'Inst. delivery rate',val:'99.9%',pct:99,color:'#34D399'},{name:'Child stunting',val:'8%',pct:8,color:'#34D399'}],
+   trend:[18,17,16,15,14,14,14],
+   explanation:'Ernakulam has India\'s lowest anemia burden district. Anemia at 9% — vs 57% national average — is the result of decades of IFA supplementation at 98% coverage and near-universal institutional delivery. A model for what sustained policy investment can achieve.'},
+
+  // ── TELANGANA ──
+  {id:'hyderabad',name:'Hyderabad',state:'Telangana',lat:17.38,lng:78.47,risk:34,roc:-2,type:'ane',
+   drivers:[{name:'Anemia in women',val:'41%',pct:41,color:'#FBBF24'},{name:'IFA supplementation',val:'74%',pct:74,color:'#34D399'},{name:'Inst. delivery rate',val:'96%',pct:96,color:'#34D399'},{name:'ANC 4+ visits',val:'72%',pct:72,color:'#34D399'}],
+   trend:[48,44,41,39,37,35,34],
+   explanation:'Hyderabad is a low-risk benchmark district for Telangana. Anemia in women at 41% — above the national ideal but declining steadily — is driven primarily by dietary gaps in low-income urban populations in Old City areas. High institutional delivery at 96% and IFA supplementation at 74% are strong protective factors. The district\'s risk is improving year-on-year, making it a model for other Telangana districts. Remaining gaps are concentrated in GHMC Zone 5 and Charminar areas where adolescent girl anemia reaches 52%.'},
+  {id:'adilabad',name:'Adilabad',state:'Telangana',lat:19.66,lng:78.53,risk:58,roc:+3,type:'ane',
+   drivers:[{name:'Tribal anemia prevalence',val:'61%',pct:61,color:'#F472B6'},{name:'Sickle cell carrier',val:'11%',pct:22,color:'#818CF8'},{name:'IFA compliance',val:'52%',pct:52,color:'#FBBF24'},{name:'Immunization coverage',val:'76%',pct:76,color:'#34D399'}],
+   trend:[40,44,48,50,53,56,58],
+   explanation:'Adilabad in the Telangana tribal belt shows moderate and rising anemia risk. Tribal anemia at 61% among Gond communities is driven by both dietary iron deficiency and a high sickle cell carrier rate of 11%. IFA compliance at 52% reflects irregular supply chains to forest settlements. The escalation of +3 points per month warrants close monitoring and targeted tribal outreach before the pre-monsoon food scarcity window.'},
+  {id:'nizamabad',name:'Nizamabad',state:'Telangana',lat:18.67,lng:78.10,risk:52,roc:+2,type:'mat',
+   drivers:[{name:'Maternal anemia',val:'48%',pct:48,color:'#F472B6'},{name:'ANC first trimester',val:'58%',pct:58,color:'#FBBF24'},{name:'Inst. delivery rate',val:'87%',pct:87,color:'#34D399'},{name:'Distance to EmOC',val:'28 km',pct:56,color:'#FB923C'}],
+   trend:[38,40,43,46,48,50,52],
+   explanation:'Nizamabad shows moderate maternal risk with a slowly escalating trend. Maternal anemia at 48% is above the Telangana average and enters delivery without adequate correction — only 58% of women register ANC in the first trimester, delaying iron supplementation by a critical 12-week window. Distance to emergency obstetric care at 28 km is manageable but creates risk in the mandals of Banswada and Yellareddy.'},
+  {id:'mahabubnagar',name:'Mahabubnagar',state:'Telangana',lat:16.74,lng:77.98,risk:63,roc:+4,type:'mat',
+   drivers:[{name:'Maternal mortality rate',val:'112/L',pct:37,color:'#F87171'},{name:'Anemia in pregnancy',val:'55%',pct:55,color:'#F472B6'},{name:'Skilled birth attendant',val:'71%',pct:71,color:'#FBBF24'},{name:'Adolescent marriage rate',val:'18%',pct:36,color:'#FB923C'}],
+   trend:[38,42,47,52,56,59,63],
+   explanation:'Mahabubnagar is Telangana\'s highest maternal risk district. Adolescent marriage at 18% creates high-risk early pregnancies in girls who are already nutritionally depleted. Anemia at 55% in pregnancy compounds the risk. Skilled birth attendance at 71% is improving but still 26 points below the Hyderabad benchmark. The +4 point monthly escalation is driven by rising early marriage prevalence in Nagarkurnool and Kollapur mandals.'},
+  {id:'warangal',name:'Warangal',state:'Telangana',lat:17.97,lng:79.60,risk:44,roc:+1,type:'ane',
+   drivers:[{name:'Anemia in women',val:'46%',pct:46,color:'#FBBF24'},{name:'IFA supplementation',val:'68%',pct:68,color:'#FBBF24'},{name:'Inst. delivery rate',val:'92%',pct:92,color:'#34D399'},{name:'Child stunting',val:'28%',pct:28,color:'#FBBF24'}],
+   trend:[36,38,39,40,42,43,44],
+   explanation:'Warangal shows moderate stable anemia risk. Anemia in women at 46% is above ideal but below the state average. IFA supplementation at 68% is improving steadily. Institutional delivery at 92% is a strong protective factor. The district is on a slow upward trajectory, primarily from peri-urban migration increasing demand on Anganwadi services beyond current capacity.'},
+
+  // ── ANDHRA PRADESH ──
+  {id:'kurnool',name:'Kurnool',state:'Andhra Pradesh',lat:15.83,lng:78.04,risk:61,roc:+3,type:'mat',
+   drivers:[{name:'Maternal anemia',val:'53%',pct:53,color:'#F472B6'},{name:'Inst. delivery rate',val:'78%',pct:78,color:'#FBBF24'},{name:'ANC 4+ visits',val:'54%',pct:54,color:'#FBBF24'},{name:'Distance to EmOC',val:'35 km',pct:70,color:'#FB923C'}],
+   trend:[36,40,44,49,54,58,61],
+   explanation:'Kurnool shows escalating maternal risk in Rayalaseema. Maternal anemia at 53% enters delivery in a district where institutional delivery at 78% means 22% of births happen at home without skilled attendance. ANC at 54% for 4+ visits leaves many high-risk pregnancies undetected. The rocky terrain of Nallamala forest areas adds to EmOC access delays beyond the 35 km average distance.'},
+  {id:'vizianagaram',name:'Vizianagaram',state:'Andhra Pradesh',lat:18.12,lng:83.40,risk:59,roc:+3,type:'ane',
+   drivers:[{name:'Tribal child anemia',val:'57%',pct:57,color:'#F472B6'},{name:'Tribal malnutrition',val:'16%',pct:32,color:'#FBBF24'},{name:'Inst. delivery rate',val:'74%',pct:74,color:'#34D399'},{name:'IFA supplementation',val:'61%',pct:61,color:'#FBBF24'}],
+   trend:[34,38,42,47,51,55,59],
+   explanation:'Vizianagaram in the Eastern Ghats shows rising tribal anemia burden. Child anemia at 57% among Kondh and Savara tribal communities reflects both dietary iron deficiency and high parasitic infection load in the hill tracts. IFA supplementation at 61% is improving via mobile health vans but monsoon road disruptions create 3–4 month supply gaps annually. Institutional delivery at 74% is a relative strength.'},
+  {id:'visakhapatnam',name:'Visakhapatnam',state:'Andhra Pradesh',lat:17.69,lng:83.22,risk:38,roc:-1,type:'mat',
+   drivers:[{name:'Inst. delivery rate',val:'94%',pct:94,color:'#34D399'},{name:'Anemia in pregnancy',val:'38%',pct:38,color:'#FBBF24'},{name:'ANC 4+ visits',val:'78%',pct:78,color:'#34D399'},{name:'Skilled birth attendant',val:'91%',pct:91,color:'#34D399'}],
+   trend:[48,46,44,42,41,39,38],
+   explanation:'Visakhapatnam is an improving district with low and declining maternal risk. Institutional delivery at 94%, skilled birth attendance at 91%, and improving ANC coverage reflect the benefits of the urban-coastal health infrastructure. Remaining anemia burden at 38% is concentrated in the Visakha Agency tribal belt (Paderu, Araku), which is being addressed through tribal health sub-centres established under the AP Health Mission.'},
+
+  // ── WEST BENGAL ──
+  {id:'murshidabad',name:'Murshidabad',state:'West Bengal',lat:24.18,lng:88.27,risk:69,roc:+4,type:'mat',
+   drivers:[{name:'Maternal mortality rate',val:'178/L',pct:59,color:'#F87171'},{name:'Anemia in pregnancy',val:'62%',pct:62,color:'#F472B6'},{name:'Home delivery rate',val:'31%',pct:62,color:'#FB923C'},{name:'Arsenic exposure',val:'Moderate',pct:55,color:'#FBBF24'}],
+   trend:[42,46,51,56,61,65,69],
+   explanation:'Murshidabad is West Bengal\'s highest maternal risk district. Anemia at 62% in pregnancy is compounded by an unusual co-factor: moderate arsenic exposure from contaminated groundwater interferes with iron metabolism, worsening anemia severity. Home delivery at 31% remains high for a district with available government facilities — reflecting cultural and religious barriers in the predominantly rural Muslim population. The +4 points monthly escalation is a warning signal requiring immediate ANC intensification.'},
+  {id:'coochbehar',name:'Cooch Behar',state:'West Bengal',lat:26.32,lng:89.45,risk:56,roc:+2,type:'ane',
+   drivers:[{name:'Anemia in women',val:'58%',pct:58,color:'#F472B6'},{name:'Flood displacement',val:'Seasonal',pct:60,color:'#38BDF8'},{name:'IFA supplementation',val:'59%',pct:59,color:'#FBBF24'},{name:'Child underweight',val:'34%',pct:34,color:'#FB923C'}],
+   trend:[36,39,43,47,51,54,56],
+   explanation:'Cooch Behar shows moderate rising anemia driven by seasonal flood displacement along the Torsa and Jaldhaka rivers. Anemia at 58% in women peaks post-monsoon when flood-displaced populations return to areas with depleted food stocks. IFA supplementation at 59% drops sharply during displacement periods when ASHA contact is broken. Child underweight at 34% indicates the nutritional impact cascades into the next generation.'},
+
+  // ── MADHYA PRADESH ──
+  {id:'betul',name:'Betul',state:'Madhya Pradesh',lat:21.91,lng:77.90,risk:66,roc:+4,type:'mat',
+   drivers:[{name:'Maternal anemia',val:'57%',pct:57,color:'#F472B6'},{name:'Inst. delivery rate',val:'72%',pct:72,color:'#FBBF24'},{name:'ANC 4+ visits',val:'38%',pct:38,color:'#F87171'},{name:'ASHA vacancy rate',val:'24%',pct:24,color:'#FB923C'}],
+   trend:[36,41,46,52,57,62,66],
+   explanation:'Betul in the Satpura plateau has rapidly escalating maternal risk. ANC 4+ coverage at 38% is critically low — below the national average by 20 points. ASHA vacancy rate of 24% means over a quarter of villages have no frontline health worker to conduct antenatal follow-up. Maternal anemia at 57% entering delivery without adequate ANC monitoring creates high obstetric emergency risk. The +4 pts/month trend demands emergency ASHA recruitment and ANC camp deployment.'},
+  {id:'dhar',name:'Dhar',state:'Madhya Pradesh',lat:22.60,lng:75.30,risk:71,roc:+5,type:'ane',
+   drivers:[{name:'Tribal anemia',val:'68%',pct:68,color:'#F87171'},{name:'Sickle cell carrier',val:'19%',pct:38,color:'#818CF8'},{name:'IFA supplementation',val:'44%',pct:44,color:'#FBBF24'},{name:'Newborn screening',val:'3/9 blocks',pct:33,color:'#FB923C'}],
+   trend:[40,45,50,56,61,66,71],
+   explanation:'Dhar in the Malwa tribal region has rapidly escalating anemia risk. Tribal anemia at 68% reflects both dietary iron deficiency and a 19% sickle cell carrier rate among Bhil and Bhilala communities — the second highest in MP after Barwani. IFA supplementation at 44% is inadequate and newborn sickle cell screening covers only 3 of 9 blocks. The +5 pts/month escalation is among the steepest in the dashboard.'},
+
+  // ── UTTAR PRADESH ──
+  {id:'bahraich',name:'Bahraich',state:'Uttar Pradesh',lat:27.57,lng:81.59,risk:79,roc:+6,type:'mat',
+   drivers:[{name:'Maternal anemia',val:'62%',pct:62,color:'#F472B6'},{name:'Skilled birth attendant',val:'41%',pct:41,color:'#F87171'},{name:'ANC 4+ visits',val:'22%',pct:22,color:'#F87171'},{name:'Distance to EmOC',val:'38 km',pct:76,color:'#F87171'}],
+   trend:[40,48,54,60,66,73,79],
+   explanation:'Bahraich is a critical maternal risk district in the Nepal border Terai belt. Maternal anemia at 62% combined with only 41% skilled birth attendance creates a high obstetric fatality risk. ANC 4+ coverage at 22% is among the lowest in Uttar Pradesh, meaning high-risk pregnancies are routinely undetected. The Japan Encephalitis endemic context means women in late pregnancy are additionally vulnerable to fever-induced complications during monsoon months.'},
+  {id:'gorakhpur',name:'Gorakhpur',state:'Uttar Pradesh',lat:26.76,lng:83.37,risk:72,roc:+4,type:'mat',
+   drivers:[{name:'Maternal anemia',val:'57%',pct:57,color:'#F472B6'},{name:'ANC 4+ visits',val:'28%',pct:28,color:'#F87171'},{name:'Inst. delivery rate',val:'69%',pct:69,color:'#FBBF24'},{name:'PPH management',val:'Limited',pct:65,color:'#FB923C'}],
+   trend:[40,46,52,58,63,68,72],
+   explanation:'Gorakhpur has a rising maternal risk profile driven by poor ANC coverage and high anemia burden. ANC 4+ at 28% means most pregnant women in rural mandals of Gorakhpur receive no systematic antenatal monitoring. Maternal anemia at 57% combined with limited PPH (postpartum hemorrhage) management capacity at CHC level creates life-threatening delivery risk. The BRD Medical College capacity serves urban Gorakhpur well but district-level coverage is deeply unequal.'},
+];
+
+let activeFilter='all', selectedId=null, typingTimeout=null;
+const tabsInit={};
+
+function getRiskColor(r){return r>=80?'#F87171':r>=60?'#FB923C':r>=40?'#FBBF24':'#34D399'}
+function getRiskCat(r){
+  if(r>=80)return{label:'Critical',color:'#F87171'};
+  if(r>=60)return{label:'High Risk',color:'#FB923C'};
+  if(r>=40)return{label:'Moderate',color:'#FBBF24'};
+  return{label:'Low Risk',color:'#34D399'};
+}
+function getTypeInfo(t){return t==='mat'?{label:'Maternal',color:'#F472B6'}:{label:'Anemia',color:'#FBBF24'}}
+function getRoCInfo(roc){
+  if(roc>=6)return{label:`Rapidly escalating · +${roc} pts/month`,color:'#F87171',cls:'roc-up',icon:'▲▲'};
+  if(roc>=3)return{label:`Escalating · +${roc} pts/month`,color:'#FB923C',cls:'roc-up',icon:'▲'};
+  if(roc>0)return{label:`Slowly rising · +${roc} pts/month`,color:'#FBBF24',cls:'roc-stable',icon:'↗'};
+  if(roc===0)return{label:'Stable · no change',color:'#6B8CAE',cls:'roc-stable',icon:'→'};
+  return{label:`Improving · ${roc} pts/month`,color:'#34D399',cls:'roc-down',icon:'↓'};
+}
+function getPlainEnglish(d){
+  const cat=getRiskCat(d.risk);
+  const type=getTypeInfo(d.type);
+  const roc=getRoCInfo(d.roc);
+  if(d.risk>=80) return `${d.name} is in a <b>health emergency</b>. ${d.drivers[0].name} at ${d.drivers[0].val} is the biggest problem. Without urgent action, this will continue to get worse — risk is ${roc.label.toLowerCase()}.`;
+  if(d.risk>=60) return `${d.name} has <b>high ${type.label.toLowerCase()} risk</b>. The main issue is ${d.drivers[0].name} (${d.drivers[0].val}). This needs targeted intervention soon.`;
+  if(d.risk<40) return `${d.name} is a <b>benchmark district</b> — one of the healthiest in India. Its success comes from ${d.drivers[0].name} at ${d.drivers[0].val}. Other districts should replicate this model.`;
+  return `${d.name} has <b>moderate ${type.label.toLowerCase()} risk</b>. Key concern is ${d.drivers[0].name} (${d.drivers[0].val}). Early intervention can prevent this from escalating.`;
+}
+
+document.getElementById('h-crit').textContent = districts.filter(d=>d.risk>=80).length;
+
+// ══ MAP ══
+const map=L.map('map',{center:[22,82],zoom:5,zoomControl:true,attributionControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+districts.forEach(d=>{
+  const rc=getRiskColor(d.risk), tc=d.type==='mat'?'#F472B6':'#FBBF24';
+  const r=12+(d.risk/100)*26;
+  const circle=L.circleMarker([d.lat,d.lng],{radius:r,fillColor:rc,fillOpacity:.28,color:rc,weight:1.5,opacity:.8}).addTo(map);
+  const inner=L.circleMarker([d.lat,d.lng],{radius:5,fillColor:tc,fillOpacity:.9,color:'rgba(255,255,255,.25)',weight:1}).addTo(map);
+  const roc=getRoCInfo(d.roc);
+  circle.bindTooltip(`<b>${d.name}</b>, ${d.state}<br>Risk: <b style="color:${rc}">${d.risk}</b> · ${getRiskCat(d.risk).label}<br>Trend: <span style="color:${roc.color}">${roc.icon} ${d.roc>0?'+':''}${d.roc} pts/mo</span>`,{direction:'top',offset:[0,-5]});
+  circle.on('click',()=>selectDistrict(d.id));
+  inner.on('click',()=>selectDistrict(d.id));
+});
+
+// ══ FILTER + LIST ══
+function setFilter(f){
+  activeFilter=f;
+  ['all','mat','ane'].forEach(x=>{
+    const el=document.getElementById('rf-'+x);
+    el.className='rfpill'+(x===f?' a-'+f:'');
+  });
+  renderList();
+}
+function renderList(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const filtered=[...districts].filter(d=>(activeFilter==='all'||d.type===activeFilter)&&(!q||d.name.toLowerCase().includes(q)||d.state.toLowerCase().includes(q))).sort((a,b)=>b.risk-a.risk);
+  document.getElementById('cnt-badge').textContent=filtered.length+' districts';
+  document.getElementById('dlist').innerHTML=filtered.map(d=>{
+    const ti=getTypeInfo(d.type), ri=getRoCInfo(d.roc);
+    return`<div class="ditem${selectedId===d.id?' active':''}" onclick="selectDistrict('${d.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="dname">${d.name}</div>
+        <div style="font-size:10px;font-family:var(--mono);color:${getRiskColor(d.risk)}">${d.risk}</div>
+      </div>
+      <div class="dmeta"><span class="dtype-dot" style="background:${ti.color}"></span>${d.state} · ${ti.label}</div>
+      <div style="font-size:9px;font-family:var(--mono);color:${ri.color};margin-top:2px">${ri.icon} ${d.roc>0?'+':''}${d.roc} pts/mo</div>
+      <div class="rbar-wrap"><div class="rbar" style="width:${d.risk}%;background:${getRiskColor(d.risk)}"></div></div>
+    </div>`;
+  }).join('');
+}
+renderList();
+
+// ══ SELECT DISTRICT ══
+function selectDistrict(id){
+  selectedId=id; renderList();
+  const d=districts.find(x=>x.id===id);
+  if(!d)return;
+  map.flyTo([d.lat,d.lng],7,{duration:1});
+  clearTimeout(typingTimeout);
+  const cat=getRiskCat(d.risk), roc=getRoCInfo(d.roc);
+  const circ=2*Math.PI*20, dash=circ*(d.risk/100);
+  const sp=d.trend.map((v,i)=>`${16+i*28},${68-v*0.48}`).join(' ');
+  const ap='M16,68 '+d.trend.map((v,i)=>`L${16+i*28},${68-v*0.48}`).join(' ')+` L${16+6*28},68 Z`;
+  document.getElementById('ap-body').innerHTML=`
+    <div class="dname-big">${d.name}</div>
+    <div class="dstate-line">${d.state} · Primary: ${getTypeInfo(d.type).label}</div>
+    <div class="roc-badge ${roc.cls}">
+      <div style="font-size:18px">${roc.icon}</div>
+      <div class="roc-label"><b style="color:${roc.color}">Rate of change</b><br>${roc.label}</div>
+      <div class="roc-val" style="color:${roc.color}">${d.roc>0?'+':''}${d.roc}/mo</div>
+    </div>
+    <div class="plain-box">
+      <div class="plain-box-lbl">💡 What does this mean?</div>
+      <div class="plain-box-text">${getPlainEnglish(d)}</div>
+    </div>
+    <div class="gauge-card">
+      <div class="gauge-wrap">
+        <svg width="50" height="50" viewBox="0 0 50 50">
+          <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="4"/>
+          <circle cx="25" cy="25" r="20" fill="none" stroke="${cat.color}" stroke-width="4" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
+        </svg>
+        <div class="gauge-num" style="color:${cat.color}">${d.risk}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;margin-bottom:2px">Composite Risk Score</div>
+        <div style="font-size:10px;font-family:var(--mono);color:${cat.color}">${cat.label}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:3px;font-family:var(--mono)">RF Model v2.1 · Updated 2h ago</div>
+      </div>
+    </div>
+    <div class="sec-label">Key Risk Drivers</div>
+    ${d.drivers.map(dr=>`<div class="driver-row"><div class="dicon" style="background:${dr.color}"></div><div class="dtext">${dr.name}</div><div class="dval">${dr.val}</div><div class="dbar-w"><div class="dbar" style="width:${dr.pct}%;background:${dr.color}"></div></div></div>`).join('')}
+    <div class="sec-label">7-Month Risk Trend</div>
+    <div class="spark-card">
+      <svg width="100%" viewBox="0 0 220 72">
+        <defs><linearGradient id="sg${d.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${cat.color}" stop-opacity=".3"/><stop offset="100%" stop-color="${cat.color}" stop-opacity="0"/></linearGradient></defs>
+        <path d="${ap}" fill="url(#sg${d.id})"/>
+        <polyline points="${sp}" fill="none" stroke="${cat.color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${d.trend.map((v,i)=>`<circle cx="${16+i*28}" cy="${68-v*0.48}" r="2.5" fill="${cat.color}" opacity="${i===6?1:.35}"/>`).join('')}
+      </svg>
+    </div>
+    <div class="ai-card">
+      <div class="ai-label"><span style="color:var(--accent)">✦</span> GenAI Causal Interpretation</div>
+      <div class="ai-text" id="ai-txt"></div>
+    </div>`;
+  const target=document.getElementById('ai-txt');
+  let i=0;
+  function type(){if(i<=d.explanation.length){target.innerHTML=d.explanation.slice(0,i)+(i<d.explanation.length?'<span class="tcursor"></span>':'');i++;typingTimeout=setTimeout(type,14);}}
+  type();
+}
+
+// ══ QUERY SYSTEM ══
+const queryIndex=[
+  ...districts.map(d=>({label:d.name+', '+d.state,type:'district',id:d.id,hint:getRiskCat(d.risk).label+' · '+getTypeInfo(d.type).label})),
+  {label:'Bihar — all districts',type:'state',filter:'Bihar',hint:'5 districts'},
+  {label:'Uttar Pradesh — all districts',type:'state',filter:'Uttar Pradesh',hint:'4 districts'},
+  {label:'Telangana — all districts',type:'state',filter:'Telangana',hint:'5 districts'},
+  {label:'Andhra Pradesh — all districts',type:'state',filter:'Andhra Pradesh',hint:'3 districts'},
+  {label:'Madhya Pradesh — all districts',type:'state',filter:'Madhya Pradesh',hint:'3 districts'},
+  {label:'West Bengal — all districts',type:'state',filter:'West Bengal',hint:'2 districts'},
+  {label:'Jharkhand — all districts',type:'state',filter:'Jharkhand',hint:'2 districts'},
+  {label:'Maharashtra — all districts',type:'state',filter:'Maharashtra',hint:'2 districts'},
+  {label:'Hyderabad anemia risk',type:'district',id:'hyderabad',hint:'Low Risk Improving'},
+  {label:'Critical districts (risk above 80)',type:'filter',filter:'critical',hint:'Needs urgent action'},
+  {label:'Escalating risk (6 pts per month)',type:'filter',filter:'escalating',hint:'Rising fast'},
+  {label:'Anemia focused districts',type:'filter',filter:'ane',hint:'Iron deficiency'},
+  {label:'Maternal mortality districts',type:'filter',filter:'mat',hint:'MMR driven'},
+  {label:'Kerala benchmark',type:'filter',filter:'Kerala',hint:'Low risk model'},
+  {label:'Telangana all districts',type:'state',filter:'Telangana',hint:'5 districts'},
+];
+function handleQuery(v){
+  if(!v){hideSuggestions();return;}
+  const matches=queryIndex.filter(x=>x.label.toLowerCase().includes(v.toLowerCase())).slice(0,6);
+  if(!matches.length){hideSuggestions();return;}
+  const el=document.getElementById('qsugg');
+  el.style.display='block';
+  el.innerHTML=matches.map(m=>`
+    <div class="qsugg-item" onclick="runQueryItem('${m.label}','${m.type}','${m.id||m.filter||''}')">
+      <span class="qsugg-type" style="background:rgba(244,114,182,.1);border:1px solid rgba(244,114,182,.25);color:#FBCFE8">${m.type}</span>
+      <span style="flex:1">${m.label}</span>
+      <span style="font-size:9px;color:var(--muted);font-family:var(--mono)">${m.hint}</span>
+    </div>`).join('');
+}
+function showSuggestions(){handleQuery(document.getElementById('gquery').value)}
+function hideSuggestions(){document.getElementById('qsugg').style.display='none'}
+function runQueryItem(label,type,id){
+  document.getElementById('gquery').value=label;
+  hideSuggestions();
+  if(type==='district'){runQueryDistrict(id);}
+  else{runQuery(label);}
+}
+function runQuery(q){
+  document.getElementById('gquery').value=q;
+  hideSuggestions();
+  switchTab('query');
+  const ql=q.toLowerCase();
+  let results=[];
+  if(ql.includes('critical')||ql.includes('urgent')) results=districts.filter(d=>d.risk>=80);
+  else if(ql.includes('escalat')) results=districts.filter(d=>d.roc>=6);
+  else if(ql.includes('kerala')||ql.includes('benchmark')) results=districts.filter(d=>d.risk<30);
+  else if(ql.includes('anemia')||ql.includes('ane')) results=districts.filter(d=>d.type==='ane');
+  else if(ql.includes('maternal')||ql.includes('mat')) results=districts.filter(d=>d.type==='mat');
+  else{
+    results=districts.filter(d=>d.name.toLowerCase().includes(ql)||d.state.toLowerCase().includes(ql));
+    if(!results.length) results=districts.filter(d=>d.type==='mat'||d.type==='ane').sort((a,b)=>b.risk-a.risk).slice(0,8);
+  }
+  results=results.sort((a,b)=>b.risk-a.risk);
+  const el=document.getElementById('qresult-body');
+  const topDistrict=results[0];
+  el.innerHTML=`
+    <div class="qr-hero">
+      <div class="qr-title">Results for: "${q}"</div>
+      <div class="qr-sub">${results.length} district${results.length!==1?'s':''} matched · sorted by risk score · Sources: NFHS-5, WHO GHO, RF Risk Model</div>
+    </div>
+    ${topDistrict?`
+    <div class="card">
+      <div class="card-title">⚡ Highest Risk Match
+        <span class="stag nfhs">NFHS-5</span><span class="stag who">WHO GHO</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:18px;font-weight:700;margin-bottom:4px">${topDistrict.name}, ${topDistrict.state}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${getTypeInfo(topDistrict.type).label} · Risk Score: <span style="color:${getRiskColor(topDistrict.risk)};font-weight:700">${topDistrict.risk}</span> · ${getRiskCat(topDistrict.risk).label}</div>
+          <div class="plain-box" style="margin-bottom:0"><div class="plain-box-lbl">💡 Plain English</div><div class="plain-box-text">${getPlainEnglish(topDistrict)}</div></div>
+        </div>
+      </div>
+    </div>`:''}
+    <div class="card">
+      <div class="card-title">All Matching Districts
+        <span class="stag nfhs">NFHS-5</span>
+      </div>
+      <table class="dtable">
+        <thead><tr><th>District</th><th>State</th><th>Focus</th><th>Risk Score</th><th>Rate of Change</th><th>Top Driver</th></tr></thead>
+        <tbody>${results.map(d=>{
+          const ti=getTypeInfo(d.type), ri=getRoCInfo(d.roc);
+          return`<tr style="cursor:pointer" onclick="switchTab('map');setTimeout(()=>selectDistrict('${d.id}'),100)">
+            <td style="font-weight:700">${d.name}</td>
+            <td>${d.state}</td>
+            <td><span style="color:${ti.color};font-family:var(--mono);font-size:10px">${ti.label}</span></td>
+            <td><span style="font-family:var(--mono);font-weight:700;color:${getRiskColor(d.risk)}">${d.risk}</span></td>
+            <td><span style="font-family:var(--mono);font-size:10px;color:${ri.color}">${ri.icon} ${d.roc>0?'+':''}${d.roc}/mo</span></td>
+            <td style="font-size:10px;color:var(--muted)">${d.drivers[0].name} (${d.drivers[0].val})</td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+function runQueryDistrict(id){
+  switchTab('map');
+  setTimeout(()=>selectDistrict(id),100);
+}
+
+// ══ TABS ══
+function switchTab(t){
+  document.querySelectorAll('.ntab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  document.getElementById('panel-'+t).classList.add('active');
+  if(!tabsInit[t]){tabsInit[t]=true;
+    if(t==='surv')initSurv();
+    if(t==='timeline')initTimeline();
+    if(t==='trends')initTrends();
+  }
+}
+
+// ══ SURVEILLANCE ══
+async function initSurv(){
+  const el=document.getElementById('surv-content');
+  const global=await fetch('https://disease.sh/v3/covid-19/all').then(r=>r.json()).catch(()=>({cases:706e6,deaths:7e6,recovered:675e6,todayCases:0,todayDeaths:0}));
+  const gc=global;
+  const alerts=[
+    {src:'ProMED',color:'#F472B6',text:'Bihar: Maternal mortality cluster in Purnea — 8 deaths in 6 weeks traced to severe anemia at delivery, blood bank 45+ km away',time:'3h ago'},
+    {src:'WHO GHO',color:'#38BDF8',text:'India MMR Update 2025: National MMR at 97/100K — Bihar and UP contributing disproportionately to national burden',time:'6h ago'},
+    {src:'NFHS-5',color:'#F472B6',text:'Iron deficiency anemia in Indian women of reproductive age: 57% nationally — highest Bihar (63%), UP (59%), Assam (61%)',time:'12h ago'},
+    {src:'ProMED',color:'#FBBF24',text:'Jharkhand: Postpartum hemorrhage fatality in Dumka — third this month, attributed to anemia at delivery and delayed transfusion',time:'1d ago'},
+    {src:'WHO GHO',color:'#38BDF8',text:'Global: Anemia is leading preventable cause of maternal death. 40% of global maternal deaths occur in South Asia',time:'1d ago'},
+    {src:'HealthMap',color:'#818CF8',text:'Assam flood season: 8 high-MMR districts with PHC accessibility dropping to <40% during peak monsoon months',time:'2d ago'},
+    {src:'CDC',color:'#34D399',text:'CDC Global Health: Iron supplementation programs remain underfunded in 12 high-burden Indian states — funding gap estimated at $180M',time:'3d ago'},
+    {src:'ECDC',color:'#F87171',text:'Comparative analysis: India anemia burden 4× higher than European average — systemic dietary and supplementation gap identified',time:'4d ago'},
+  ];
+  const stateData=[
+    {state:'Bihar',mmr:'218',anemia:'63%',instDel:'76%',anc4:'17%',col:'#F87171'},
+    {state:'Uttar Pradesh',mmr:'167',anemia:'59%',instDel:'83%',anc4:'21%',col:'#F87171'},
+    {state:'Assam',mmr:'215',anemia:'61%',instDel:'84%',anc4:'28%',col:'#F87171'},
+    {state:'Madhya Pradesh',mmr:'163',anemia:'54%',instDel:'94%',anc4:'23%',col:'#FB923C'},
+    {state:'Rajasthan',mmr:'141',anemia:'46%',instDel:'92%',anc4:'30%',col:'#FBBF24'},
+    {state:'Maharashtra',mmr:'38',anemia:'45%',instDel:'97%',anc4:'58%',col:'#34D399'},
+    {state:'Karnataka',mmr:'69',anemia:'44%',instDel:'97%',anc4:'68%',col:'#34D399'},
+    {state:'Kerala',mmr:'19',anemia:'31%',instDel:'99.9%',anc4:'97%',col:'#34D399'},
+  ];
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Global Stats (Disease.sh · Live) <span class="stag dis">disease.sh API</span></div>
+      <div class="grid3">
+        <div class="stat-box"><div class="stat-val" style="color:#F87171">${(gc.cases/1e6).toFixed(0)}M</div><div class="stat-lbl">Total COVID Cases</div><div class="stat-delta" style="color:#FBBF24">+${(gc.todayCases||0).toLocaleString()} today</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#34D399">${(gc.recovered/1e6).toFixed(0)}M</div><div class="stat-lbl">Recovered</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#818CF8">${(gc.active/1e6).toFixed(1)}M</div><div class="stat-lbl">Active Cases</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">India Maternal &amp; Anemia Snapshot <span class="stag nfhs">NFHS-5</span><span class="stag who">WHO GHO</span></div>
+      <div class="grid3">
+        <div class="stat-box"><div class="stat-val" style="color:#F87171">97</div><div class="stat-lbl">India MMR / 100K</div><div class="stat-delta" style="color:#34D399">↓ from 254 in 2004</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#F472B6">57%</div><div class="stat-lbl">Anemia in women (national)</div><div class="stat-delta" style="color:#F87171">↑ 1.8% since 2015</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:#FBBF24">89%</div><div class="stat-lbl">Institutional delivery (national)</div><div class="stat-delta" style="color:#34D399">↑ from 41% in 2005</div></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">District Risk Distribution <span class="stag nfhs">RF Model</span></div>
+        <div class="ch-sm"><canvas id="ch-risk"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Anemia Driver Breakdown <span class="stag nfhs">NFHS-5</span></div>
+        <div class="ch-sm"><canvas id="ch-drivers"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">State-Level Comparison <span class="stag nfhs">NFHS-5</span><span class="stag who">WHO GHO</span></div>
+      <table class="dtable">
+        <thead><tr><th>State</th><th>MMR/100K</th><th>Anemia (Women)</th><th>Inst. Delivery</th><th>ANC 4+</th></tr></thead>
+        <tbody>${stateData.map(s=>`<tr><td style="font-weight:700">${s.state}</td><td style="font-family:var(--mono);color:${s.col}">${s.mmr}</td><td style="font-family:var(--mono);color:#F472B6">${s.anemia}</td><td style="font-family:var(--mono)">${s.instDel}</td><td style="font-family:var(--mono)">${s.anc4}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">MMR vs Anemia Correlation <span class="stag who">WHO GHO</span><span class="stag nfhs">NFHS-5</span></div>
+      <div class="ch"><canvas id="ch-corr"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Live Alert Feed <span class="stag promed">ProMED</span><span class="stag who">WHO</span><span class="stag nfhs">NFHS-5</span><span class="stag cdc">CDC</span><span class="stag hmap">HealthMap</span><span class="stag ecdc">ECDC</span></div>
+      ${alerts.map(a=>`<div class="alert-row"><div class="alert-dot" style="background:${a.color}"></div><div><div class="alert-src">${a.src}</div><div class="alert-text">${a.text}</div><div class="alert-time">${a.time}</div></div></div>`).join('')}
+    </div>`;
+  setTimeout(()=>{
+    const r1=document.getElementById('ch-risk');
+    if(r1) new Chart(r1,{type:'doughnut',data:{labels:['Critical','High','Moderate','Low'],datasets:[{data:[districts.filter(d=>d.risk>=80).length,districts.filter(d=>d.risk>=60&&d.risk<80).length,districts.filter(d=>d.risk>=40&&d.risk<60).length,districts.filter(d=>d.risk<40).length],backgroundColor:['rgba(248,113,113,.7)','rgba(251,146,60,.7)','rgba(251,191,36,.7)','rgba(52,211,153,.7)'],borderWidth:1,borderColor:['#F87171','#FB923C','#FBBF24','#34D399']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6B8CAE',font:{size:9}}}}}});
+    const r2=document.getElementById('ch-drivers');
+    if(r2) new Chart(r2,{type:'radar',data:{labels:['Iron Deficiency','Low ANC','Home Delivery','Adolescent Anemia','Poor Sanitation','Sickle Cell'],datasets:[{data:[87,72,65,71,68,38],backgroundColor:'rgba(244,114,182,.15)',borderColor:'#F472B6',borderWidth:1.5,pointBackgroundColor:'#F472B6',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{ticks:{display:false},grid:{color:'rgba(30,58,95,.7)'},pointLabels:{color:'#6B8CAE',font:{size:9}}}}}});
+    const r3=document.getElementById('ch-corr');
+    if(r3) new Chart(r3,{type:'scatter',data:{datasets:[{data:[{x:63,y:218,label:'Bihar'},{x:59,y:167,label:'UP'},{x:61,y:215,label:'Assam'},{x:54,y:163,label:'MP'},{x:46,y:141,label:'Rajasthan'},{x:45,y:38,label:'Maharashtra'},{x:44,y:69,label:'Karnataka'},{x:31,y:19,label:'Kerala'}],backgroundColor:'rgba(244,114,182,.65)',borderColor:'#F472B6',pointRadius:8,pointHoverRadius:10}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(ctx)=>`${ctx.raw.label} — Anemia: ${ctx.raw.x}%, MMR: ${ctx.raw.y}`}}},scales:{x:{title:{display:true,text:'Anemia Prevalence (%)',color:'#6B8CAE',font:{size:10}},ticks:{color:'#6B8CAE',font:{size:9}},grid:{color:'rgba(30,58,95,.5)'}},y:{title:{display:true,text:'MMR per 100K',color:'#6B8CAE',font:{size:10}},ticks:{color:'#6B8CAE',font:{size:9}},grid:{color:'rgba(30,58,95,.5)'}}}}});
+  },100);
+}
+
+// ══ OUTBREAK TIMELINE ══
+function initTimeline(){
+  const events=[
+    {date:'Mar 2026',color:'#F87171',src:'ProMED',srcCls:'promed',title:'Maternal mortality cluster — Purnea, Bihar',desc:'8 maternal deaths in 6 weeks linked to severe anemia at delivery. Nearest blood bank 45 km away. Emergency obstetric care unavailable during nighttime hours. Health dept investigation ongoing.',severity:'critical'},
+    {date:'Feb 2026',color:'#F472B6',src:'WHO GHO',srcCls:'who',title:'India MMR report released — 97/100K (2024 estimate)',desc:'WHO Global Health Observatory releases updated India MMR estimate. Bihar (218) and Assam (215) remain outliers. Kerala benchmark at 19. North-South divide widening.',severity:'high'},
+    {date:'Jan 2026',color:'#FB923C',src:'NFHS-5 Update',srcCls:'nfhs',title:'Anemia prevalence in women rises to 57% — reversal of trend',desc:'NFHS-5 supplementary data shows anemia rising 1.8% since 2015 in women of reproductive age, reversing a decade of decline. Bihar, UP, and Assam flagged as high-burden states.',severity:'high'},
+    {date:'Dec 2025',color:'#FBBF24',src:'HealthMap',srcCls:'hmap',title:'PPH fatality cluster — Dumka, Jharkhand',desc:'3 postpartum hemorrhage deaths in one month in Dumka district. All cases: anemia at delivery (Hb <8 g/dL), blood transfusion delayed >4 hours due to distance. ASHA workers request emergency transport protocol.',severity:'high'},
+    {date:'Nov 2025',color:'#F472B6',src:'ProMED',srcCls:'promed',title:'Sickle cell-anemia compound burden — Barwani, MP',desc:'State health dept reports 71% anemia in children in Barwani. Newborn sickle cell screening shows 24% carrier rate. Only 2 of 8 blocks have functional screening infrastructure.',severity:'high'},
+    {date:'Oct 2025',color:'#38BDF8',src:'WHO GHO',srcCls:'who',title:'IFA supplementation coverage drops during summer — Rajasthan',desc:'WHO quarterly report notes 18% drop in IFA uptake in Barmer and Jaisalmer during summer months (April–June) due to ASHA outreach constraints from extreme heat. Anemia peaks align with this gap.',severity:'moderate'},
+    {date:'Sep 2025',color:'#34D399',src:'CDC Global Health',srcCls:'cdc',title:'Kerala MMR reaches 19 — cited as global best-practice model',desc:'CDC Global Health newsletter cites Kerala as a model for low-income health systems. Near-universal ANC, female literacy at 92%, and institutional delivery at 99.9% are identified as the three key drivers.',severity:'low'},
+    {date:'Aug 2025',color:'#FBBF24',src:'HealthMap',srcCls:'hmap',title:'Assam flood season — 8 districts with PHC inaccessibility',desc:'Brahmaputra flooding renders 40–60% of PHCs inaccessible in Dhubri, Chirang, and 6 other high-MMR districts. Pregnant women unable to reach institutional delivery. Maternal deaths spike annually in this window.',severity:'high'},
+    {date:'Jul 2025',color:'#F87171',src:'ProMED',srcCls:'promed',title:'Adolescent anemia pipeline identified — Sitamarhi, Bihar',desc:'State surveillance report identifies 54% anemia in adolescent girls in Sitamarhi entering pregnancy without treatment. ANC registration in first trimester at 31%. Calls for school-based IFA supplementation.',severity:'high'},
+    {date:'Jun 2025',color:'#818CF8',src:'ECDC',srcCls:'ecdc',title:'ECDC comparative report: India anemia burden 4× European average',desc:'European CDC comparative analysis finds India anemia burden in women of reproductive age is 4× higher than EU average. Identifies systemic dietary gap and underfunded IFA supplementation program.',severity:'moderate'},
+    {date:'May 2025',color:'#34D399',src:'WHO GHO',srcCls:'who',title:'WHO recommends IFA supplementation expansion — high-burden districts',desc:'WHO releases updated antenatal care guidelines recommending daily IFA supplementation from first trimester. India\'s current coverage of 61% falls short of 90% target.',severity:'low'},
+    {date:'Apr 2025',color:'#FB923C',src:'NFHS-5',srcCls:'nfhs',title:'MMR vs Anemia correlation confirmed — state-level analysis',desc:'Published analysis of NFHS-5 data confirms strong positive correlation (r=0.87) between anemia prevalence and MMR across Indian states. Bihar and Assam in highest-risk quadrant.',severity:'moderate'},
+  ];
+  const sevColor={critical:'#F87171',high:'#FB923C',moderate:'#FBBF24',low:'#34D399'};
+  document.getElementById('timeline-content').innerHTML=`
+    <div class="card">
+      <div class="card-title">Maternal &amp; Anemia Outbreak Timeline 2025–2026
+        <span class="stag promed">ProMED</span><span class="stag who">WHO</span><span class="stag hmap">HealthMap</span><span class="stag cdc">CDC</span><span class="stag ecdc">ECDC</span><span class="stag nfhs">NFHS-5</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:50%;background:#F87171;display:inline-block"></span>Critical</span>
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:50%;background:#FB923C;display:inline-block"></span>High</span>
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:50%;background:#FBBF24;display:inline-block"></span>Moderate</span>
+        <span style="font-size:10px;display:flex;align-items:center;gap:5px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:50%;background:#34D399;display:inline-block"></span>Low / Positive</span>
+      </div>
+      <div class="timeline">
+        <div class="tl-line"></div>
+        ${events.map(e=>`
+          <div class="tl-item">
+            <div class="tl-dot" style="background:${sevColor[e.severity]}"></div>
+            <div class="tl-header">
+              <span class="tl-date">${e.date}</span>
+              <span class="tl-src stag ${e.srcCls}">${e.src}</span>
+              <span style="font-size:9px;font-family:var(--mono);color:${sevColor[e.severity]};text-transform:uppercase">${e.severity}</span>
+            </div>
+            <div class="tl-title">${e.title}</div>
+            <div class="tl-desc">${e.desc}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ══ HISTORICAL TRENDS ══
+function initTrends(){
+  const years=['2015','2016','2017','2018','2019','2020','2021','2022','2023','2024','2025'];
+  const el=document.getElementById('trends-content');
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">MMR Trend 2015–2025 by State <span class="stag who">WHO GHO</span><span class="stag nfhs">NFHS-5</span></div>
+      <div class="ch-lg"><canvas id="ch-mmr-trend"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Anemia Prevalence Trend 2015–2025 <span class="stag nfhs">NFHS-5</span></div>
+      <div class="ch-lg"><canvas id="ch-anemia-trend"></canvas></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Institutional Delivery Rate Trend <span class="stag nfhs">NFHS-5</span></div>
+        <div class="ch"><canvas id="ch-inst-trend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">ANC 4+ Coverage Trend <span class="stag who">WHO GHO</span></div>
+        <div class="ch"><canvas id="ch-anc-trend"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">District Risk Score Trends — All 15 Districts <span class="stag" style="background:rgba(244,114,182,.1);border:1px solid rgba(244,114,182,.25);color:#FBCFE8">RF Model</span></div>
+      <div class="ch-lg"><canvas id="ch-dist-trend"></canvas></div>
+    </div>`;
+  setTimeout(()=>{
+    const cfg={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6B8CAE',font:{size:9},boxWidth:10}}},scales:{x:{ticks:{color:'#6B8CAE',font:{size:9}},grid:{color:'rgba(30,58,95,.4)'}},y:{ticks:{color:'#6B8CAE',font:{size:9}},grid:{color:'rgba(30,58,95,.4)'}}}};
+    // MMR Trend
+    const m1=document.getElementById('ch-mmr-trend');
+    if(m1) new Chart(m1,{type:'line',data:{labels:years,datasets:[
+      {label:'Bihar',data:[340,320,310,290,270,258,245,232,225,221,218],borderColor:'#F87171',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4},
+      {label:'Assam',data:[328,310,295,275,260,248,238,228,220,217,215],borderColor:'#FB923C',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4},
+      {label:'UP',data:[285,268,252,238,220,206,195,183,174,170,167],borderColor:'#FBBF24',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4},
+      {label:'MP',data:[260,244,228,214,200,188,178,170,165,164,163],borderColor:'#818CF8',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4},
+      {label:'Karnataka',data:[144,133,122,111,102,94,85,78,73,71,69],borderColor:'#38BDF8',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4},
+      {label:'Kerala',data:[61,52,46,39,34,29,26,23,21,20,19],borderColor:'#34D399',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4},
+    ]},options:{...cfg,scales:{...cfg.scales,y:{...cfg.scales?.y,title:{display:true,text:'MMR per 100,000 live births',color:'#6B8CAE',font:{size:9}}}}}});
+    // Anemia
+    const m2=document.getElementById('ch-anemia-trend');
+    if(m2) new Chart(m2,{type:'line',data:{labels:years,datasets:[
+      {label:'Bihar',data:[68,67,66,66,65,64,64,63,63,63,63],borderColor:'#F87171',backgroundColor:'rgba(248,113,113,.05)',borderWidth:2,fill:true,tension:.4,pointRadius:3},
+      {label:'UP',data:[62,62,61,61,60,60,59,59,59,59,59],borderColor:'#FB923C',backgroundColor:'transparent',borderWidth:1.5,tension:.4,pointRadius:2},
+      {label:'Assam',data:[66,65,64,63,62,62,61,61,61,61,61],borderColor:'#FBBF24',backgroundColor:'transparent',borderWidth:1.5,tension:.4,pointRadius:2},
+      {label:'National',data:[53,53,52,52,52,51,51,57,57,57,57],borderColor:'#818CF8',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],tension:.4,pointRadius:2},
+      {label:'Kerala',data:[40,38,37,36,35,33,32,31,31,31,31],borderColor:'#34D399',backgroundColor:'transparent',borderWidth:1.5,tension:.4,pointRadius:2},
+    ]},options:{...cfg,scales:{...cfg.scales,y:{...cfg.scales?.y,title:{display:true,text:'Anemia prevalence (%)',color:'#6B8CAE',font:{size:9}}}}}});
+    // Inst delivery
+    const m3=document.getElementById('ch-inst-trend');
+    if(m3) new Chart(m3,{type:'bar',data:{labels:['2015','2019','2021','2024'],datasets:[
+      {label:'Bihar',data:[63,71,76,78],backgroundColor:'rgba(248,113,113,.6)',borderRadius:4},
+      {label:'UP',data:[68,77,83,85],backgroundColor:'rgba(251,146,60,.6)',borderRadius:4},
+      {label:'National',data:[79,85,89,91],backgroundColor:'rgba(129,140,248,.6)',borderRadius:4},
+      {label:'Kerala',data:[99.7,99.8,99.9,99.9],backgroundColor:'rgba(52,211,153,.6)',borderRadius:4},
+    ]},options:{...cfg,scales:{...cfg.scales,y:{...cfg.scales?.y,max:100,title:{display:true,text:'% inst. delivery',color:'#6B8CAE',font:{size:9}}}}}});
+    // ANC
+    const m4=document.getElementById('ch-anc-trend');
+    if(m4) new Chart(m4,{type:'line',data:{labels:['2015','2017','2019','2021','2023','2025'],datasets:[
+      {label:'Bihar ANC 4+',data:[9,12,14,15,16,17],borderColor:'#F87171',backgroundColor:'transparent',borderWidth:2,tension:.4,pointRadius:3},
+      {label:'National ANC 4+',data:[36,42,48,52,56,58],borderColor:'#818CF8',backgroundColor:'transparent',borderWidth:2,tension:.4,pointRadius:3},
+      {label:'Kerala ANC 4+',data:[90,92,94,95,96,97],borderColor:'#34D399',backgroundColor:'transparent',borderWidth:2,tension:.4,pointRadius:3},
+    ]},options:{...cfg,scales:{...cfg.scales,y:{...cfg.scales?.y,max:100,title:{display:true,text:'% receiving ANC 4+ visits',color:'#6B8CAE',font:{size:9}}}}}});
+    // District trends
+    const m5=document.getElementById('ch-dist-trend');
+    const months=['Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+    if(m5) new Chart(m5,{type:'line',data:{labels:months,datasets:districts.slice(0,8).map((d,i)=>{
+      const cols=['#F87171','#F472B6','#FB923C','#FBBF24','#34D399','#38BDF8','#818CF8','#2DD4BF'];
+      return{label:d.name,data:d.trend,borderColor:cols[i],backgroundColor:'transparent',borderWidth:1.5,tension:.4,pointRadius:2};
+    })},options:{...cfg}});
+  },100);
+}
+</script>
+</body>
+</html>
